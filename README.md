@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Megapolis Backend (FastAPI + PostgreSQL)
 Generated scaffold for your React Vite + Tailwind UI project.
 
@@ -31,3 +32,6 @@ Generated scaffold for your React Vite + Tailwind UI project.
    uvicorn app.main:app --reload
    ```
 6. Visit `http://127.0.0.1:8000/docs` for interactive OpenAPI docs.
+=======
+# megapolisBackEnd
+>>>>>>> 082b6d4c510ed30deaf0ac5865cc27e4f383b25f

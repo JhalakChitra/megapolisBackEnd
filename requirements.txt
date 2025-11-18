@@ -1,9 +1,17 @@
 fastapi
 uvicorn[standard]
 sqlalchemy
+<<<<<<< HEAD
 psycopg[binary]
 pydantic
 python-jose
 passlib[bcrypt]
 python-dotenv
 alembic
+=======
+psycopg2-binary
+python-jose
+passlib[bcrypt]
+pydantic
+python-multipart
+>>>>>>> 082b6d4c510ed30deaf0ac5865cc27e4f383b25f
