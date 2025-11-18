@@ -1,0 +1,1 @@
+Use alembic to manage migrations (not initialized in scaffold).
