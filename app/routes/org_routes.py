@@ -1,26 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-<<<<<<< HEAD
-from app.database import get_db
-from app.models.organization import Organization
-from app.schemas.org_schemas import OrgCreate, OrgOut
-from typing import List
-
-router = APIRouter()
-
-@router.post("/", response_model=OrgOut)
-def create_org(org_in: OrgCreate, db: Session = Depends(get_db)):
-    org = Organization(**org_in.dict())
-    db.add(org)
-    db.commit()
-    db.refresh(org)
-    return org
-
-@router.get("/", response_model=List[OrgOut])
-def list_orgs(db: Session = Depends(get_db)):
-    orgs = db.query(Organization).all()
-    return orgs
-=======
 from jose import jwt
 from app.database import SessionLocal
 from app.schemas.org_schema import OrgCreate
@@ -78,4 +57,3 @@ def get_org(org_id: int, db: Session = Depends(get_db)):
     if not org:
         raise HTTPException(404, "Organization not found")
     return org
->>>>>>> 082b6d4c510ed30deaf0ac5865cc27e4f383b25f
