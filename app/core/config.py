@@ -1,4 +1,4 @@
-DATABASE_URL = "postgresql://postgres:123@localhost:5432/megapolis_db"
+DATABASE_URL = "postgresql://postgres:123@localhost:5432/megapolisdb"
 
 SECRET_KEY = "MEGAPOLIS_SECRET_KEY"
 ALGORITHM = "HS256"
