@@ -1,7 +1,10 @@
 from fastapi.middleware.cors import CORSMiddleware
 
 def add_cors(app):
-    origins = ["http://localhost:5173"]  # your frontend URL
+    origins = [
+    "http://localhost:5173",  # React dev server
+
+    ]  # your frontend URL
 
     app.add_middleware(
         CORSMiddleware,

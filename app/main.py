@@ -2,6 +2,13 @@ from fastapi import FastAPI
 from app.database import Base, engine
 from app.routes import auth_routes, org_routes
 from app.middleware.cors import add_cors  # import CORS middleware
+from fastapi import FastAPI
+from pydantic import BaseModel
+import requests
+from bs4 import BeautifulSoup
+from fastapi.middleware.cors import CORSMiddleware
+import re
+
 
 # Create tables
 Base.metadata.create_all(bind=engine)

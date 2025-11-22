@@ -12,5 +12,8 @@ class UserResponse(BaseModel):
     id: int
     email: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: str    
+
     class Config:
         orm_mode = True
