@@ -76,104 +76,128 @@ def get_org(org_id: int, db: Session = Depends(get_db)):
 
 
 
-
-
-
-
-
-
 @router.post("/scrape-website")
-def scrape_website(data: URLRequest):
-    url = data.url
+async def scrape_website(data: dict):
+    import requests
+    from bs4 import BeautifulSoup
+    import re
+
+    url = data.get("url")
+    if not url.startswith("http"):
+        url = "http://" + url
+
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla"})
         soup = BeautifulSoup(response.text, "html.parser")
-
-        # Organization name
-        org_name = soup.title.string.strip() if soup.title else ""
-        if not org_name:
-            h1 = soup.find("h1")
-            org_name = h1.text.strip() if h1 else ""
-
-        # Emails
-        emails = re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}", response.text)
-        email = emails[0] if emails else ""
-
-        # Phones
-        phones = re.findall(r"\+?\d[\d\s.-]{7,}\d", response.text)
-        phone = phones[0] if phones else ""
-
-        # Address info
-        address1 = ""
-        city = ""
-        state = ""
-        zip_code = ""
-
-        # 1️⃣ Check <address> tag
-        addr_tag = soup.find("address")
-        if addr_tag:
-            text = " ".join(addr_tag.stripped_strings)
-        else:
-            # 2️⃣ Check common address classes
-            possible = soup.find_all(
-                lambda tag: tag.name in ["p", "div", "span"] and 
-                tag.get("class") and any("address" in c.lower() for c in tag.get("class"))
-            )
-            text = " ".join(possible[0].stripped_strings) if possible else ""
-
-        # 3️⃣ JSON-LD structured data
-        scripts = soup.find_all("script", type="application/ld+json")
-        for s in scripts:
-            try:
-                data_json = json.loads(s.string)
-                if isinstance(data_json, dict):
-                    addr = data_json.get("address")
-                    if addr:
-                        address1 = addr.get("streetAddress", address1)
-                        city = addr.get("addressLocality", city)
-                        state = addr.get("addressRegion", state)
-                        zip_code = addr.get("postalCode", zip_code)
-            except:
-                continue
-
-        # 4️⃣ If text exists but JSON-LD didn't give details, try to parse
-        if text and not address1:
-            # Split by commas and try to find parts
-            parts = [p.strip() for p in text.split(",") if p.strip()]
-            if len(parts) >= 3:
-                address1 = parts[0]
-                city = parts[1]
-                # Assume last part has state + zip
-                state_zip = parts[-1].split()
-                if len(state_zip) >= 2:
-                    state = state_zip[0]
-                    zip_code = state_zip[1]
-                elif len(state_zip) == 1:
-                    state = state_zip[0]
-            elif len(parts) == 2:
-                address1 = parts[0]
-                city = parts[1]
-            elif len(parts) == 1:
-                address1 = parts[0]
-
-        return {
-            "organizationName": org_name,
-            "email": email,
-            "phone": phone,
-            "address1": address1,
-            "city": city,
-            "state": state,
-            "zipCode": zip_code
-        }
-
+        text = soup.get_text(" ", strip=True)
     except Exception as e:
-        print("Scraping error:", e)
-        return {
-            "organizationName": "",
-            "email": "",
-            "phone": "",
-            "address1": "",
-            "city": "",
-            "state": "",
-            "zipCode": ""
-        }
+        return {"error": f"Failed to fetch website: {str(e)}"}
+
+    # -------------------------------
+    # ORG NAME
+    # -------------------------------
+    title = soup.title.string if soup.title else ""
+    org_name = title.split("|")[0].split("-")[0].strip()
+
+    # -------------------------------
+    # EMAIL
+    # -------------------------------
+    email = ""
+    emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text)
+    if emails:
+        email = emails[0]
+
+    # -------------------------------
+    # PHONE (supports all countries)
+    # -------------------------------
+    phone_regex = r"\+?\d[\d\-\s\(\)]{7,20}\d"
+    phones = re.findall(phone_regex, text)
+    phone = phones[0] if phones else ""
+
+    # -------------------------------
+    # 🌍 UNIVERSAL ADDRESS EXTRACTION
+    # -------------------------------
+    address_block = ""
+
+    # 1) Try tags first
+    for tag in soup.find_all(["p", "div", "li", "section", "footer"]):
+        txt = tag.get_text(" ", strip=True)
+
+        # must contain numbers + letters → real address
+        if re.search(r"\d", txt) and len(txt) > 20 and len(txt) < 300:
+            
+            # must have street/road or city/state clues
+            if any(word in txt.lower() for word in [
+                "road", "street", "st", "lane", "nagar", "sector", "tower",
+                "city", "district", "province", "state", "floor",
+                "ave", "avenue", "blvd", "drive", "dr", "suite", "office"
+            ]):
+                address_block = txt
+                break
+
+    # 2) REGEX fallback — global support
+    if not address_block:
+        patterns = [
+
+            # INDIA
+            r"\d{1,4}[A-Za-z0-9 ,.'\-]+(Road|Street|Nagar|Colony|Lane|Sector)[A-Za-z0-9 ,.'\-]+",
+
+            # USA / CANADA
+            r"\d{1,5}\s+[A-Za-z0-9 ,.'\-]+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr)[A-Za-z0-9 ,.'\-]+",
+            r"[A-Za-z ]+,\s?[A-Z]{2}\s?\d{5}(-\d{4})?",
+
+            # UK
+            r"[A-Za-z0-9 ,.'\-]+ (London|Manchester|Birmingham|Leeds)[A-Za-z0-9 ,.'\-]+",
+            r"[A-Z]{1,2}\d{1,2}\s?\d[A-Z]{2}",
+
+            # AUSTRALIA
+            r"[A-Za-z ]+,\s?(NSW|VIC|QLD|SA|WA|TAS|ACT)\s?\d{4}",
+
+            # Europe
+            r"\d{4,5}\s+[A-Za-z ]+,\s?[A-Za-z ]+",
+
+            # UAE / Gulf
+            r"P\.?O\.? Box\s?\d{3,6}"
+        ]
+
+        for p in patterns:
+            m = re.search(p, text)
+            if m:
+                address_block = m.group()
+                break
+
+    # ------------------------------------
+    # CITY, STATE, ZIP EXTRACTION
+    # ------------------------------------
+    city = ""
+    state = ""
+    zip_code = ""
+
+    if address_block:
+
+        # universal ZIP (4–6 digit)
+        zip_m = re.search(r"\b\d{4,6}\b", address_block)
+        if zip_m:
+            zip_code = zip_m.group()
+
+        # split by comma
+        parts = [p.strip() for p in address_block.split(",") if p.strip()]
+
+        if len(parts) >= 3:
+            city = parts[-3]
+            state = parts[-2]
+        elif len(parts) == 2:
+            city = parts[0]
+            state = parts[1]
+
+    return {
+        "organizationName": org_name,
+        "email": email,
+        "phone": phone,
+        "address1": address_block,
+        "city": city,
+        "state": state,
+        "zipCode": zip_code,
+    }
+
+
